@@ -1,0 +1,23 @@
+global:
+  # By default, scrape targets every 15 seconds.
+  scrape_interval: 15s
+
+  # Attach these labels to any time series or alerts when communicating with
+  # external systems (federation, remote storage, Alertmanager).
+  external_labels:
+    monitor: 'dmdk-monitor'
+
+# A scrape configuration containing four endpoints to scrape. Requires that
+# `dmdk.test` is configured. See doc/index.md#set-up-dmdktest-hostname for more
+# information.
+scrape_configs:
+  # The job name is added as a label `job=<job_name>` to any timeseries scraped
+  # from this configuration.
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['dmdk.test:9090']
+  - job_name: 'documodel'
+    scrape_interval: 30s
+    metrics_path: '/-/metrics'
+    static_configs:
+      - targets: ['dmdk.test:3000']

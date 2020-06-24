@@ -1,0 +1,27 @@
+stages:
+  - pre
+  - build
+  - test
+  - verify
+  - deploy
+
+variables:
+  DEFAULT_IMAGE: registry.gitlab.com/gitlab-org/gitlab-build-images:ruby-2.6.6-golang-1.14-git-2.26-lfs-2.9-chrome-73.0-node-12.x-yarn-1.21-postgresql-10-graphicsmagick-1.3.34
+  VERIFY_IMAGE: registry.gitlab.com/gitlab-org/gitlab-development-kit:latest
+  DMDK_DEBUG: "true"
+
+default:
+  image: ${DEFAULT_IMAGE}
+  interruptible: true
+  tags:
+    - gitlab-org
+
+include:
+  - template: 'Workflows/MergeRequest-Pipelines.gitlab-ci.yml'
+  - local: .gitlab/ci/_rules.gitlab-ci.yml
+  - local: .gitlab/ci/_docker.gitlab-ci.yml
+  - local: .gitlab/ci/pre.gitlab-ci.yml
+  - local: .gitlab/ci/build.gitlab-ci.yml
+  - local: .gitlab/ci/test.gitlab-ci.yml
+  - local: .gitlab/ci/verify.gitlab-ci.yml
+  - local: .gitlab/ci/deploy.gitlab-ci.yml

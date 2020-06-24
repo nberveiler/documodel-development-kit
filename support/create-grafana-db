@@ -1,0 +1,9 @@
+#!/usr/bin/env ruby
+require_relative '../lib/dmdk/postgresql'
+
+system(*%w[dmdk start postgresql])
+
+postgresql = DMDK::PostgreSQL.new
+abort 'postgres not ready' unless postgresql.ready?
+
+abort 'createdb failed' unless postgresql.createdb(['grafana'])

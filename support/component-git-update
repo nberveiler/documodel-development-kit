@@ -1,0 +1,37 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require_relative '../lib/dmdk'
+
+PROGNAME = File.basename(__FILE__)
+
+def main(component, worktree, revision)
+  config = DMDK::Config.new[component]
+  abort "unknown component: #{component.inspect}" unless config
+
+  unless config.auto_update
+    warn "#{PROGNAME}: auto update for #{component} is disabled via dmdk.yml"
+    exit
+  end
+
+  Dir.chdir(worktree)
+
+  [
+    [%w[git stash], false],
+    [%w[git fetch --all --tags --prune], true],
+    [%W[git checkout #{revision}], true]
+  ].each do |cmd, print_stdout|
+    out = print_stdout ? $stdout : :close
+    next if system(*cmd, out: out)
+
+    abort "command failed: #{cmd.join(' ')}"
+  end
+end
+
+def debug?
+  ENV.fetch('DMDK_DEBUG', 'false') == 'true'
+end
+
+abort "usage: #{PROGNAME} COMPONENT WORKTREE REVISION" if ARGV.count != 3
+
+main(*ARGV)

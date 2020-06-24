@@ -1,0 +1,130 @@
+#!/usr/bin/env ruby
+
+# frozen_string_literal: true
+
+require 'yaml'
+
+$LOAD_PATH.unshift(File.expand_path('../lib', __dir__))
+require 'documodel_development_kit'
+
+# DocuModel Development Kit CLI launcher
+#
+# Note to contributors: this script must not change (much) because it is
+# installed outside the documodel-development-kit repository with 'gem
+# install'. Edit lib/dmdk.rb to define new commands.
+module DMDK
+  DOTFILE = File.expand_path('~/.dmdk.yml')
+  TRUSTED_KEY = 'trusted_directories'
+  ROOT_CHECK_FILE = '.dmdk-install-root'
+  DEFAULT_INIT_DIRECTORY = File.join(Dir.pwd, 'documodel-development-kit')
+
+  def self.launcher_main # rubocop:disable Metrics/CyclomaticComplexity
+    case ARGV.first
+    when 'version'
+      puts "DocuModel Development Kit gem version #{DMDK::GEM_VERSION}"
+      true
+    when 'init'
+      if ARGV.count > 2 || (ARGV.count == 2 && (ARGV[1] == '-help' || ARGV[1] == '--help'))
+        puts 'Usage: dmdk init [DIR]'
+        return false
+      end
+      directory = ARGV.count == 2 ? ARGV[1] : DEFAULT_INIT_DIRECTORY
+      if directory.start_with?('-')
+        warn <<~INVALID_DMDK_DIR_NAME
+          The dmdk directory cannot start with a dash ('-').  Did you mean:
+          dmdk init #{directory.sub(/^-+/, '')}
+        INVALID_DMDK_DIR_NAME
+        return false
+      end
+      cmd = %W[git clone https://github.com/nberveiler/documodel-development-kit.git #{directory}]
+      system(*cmd) && trust!(directory) && remember!(directory)
+    when 'trust'
+      if ARGV.count != 2
+        puts 'Usage: dmdk trust DIR'
+        return false
+      end
+      trust!(ARGV[1])
+    else
+      # rubocop:disable Style/GlobalVars
+      $dmdk_root = find_root(Dir.pwd)
+      if $dmdk_root.nil?
+        warn <<~NOT_A_DMDK_DIR
+
+          The current working directory is not inside a documodel-development-kit
+          installation. Use 'cd' to go to your documodel-development-kit or create
+          a new one with 'dmdk init'.
+
+          dmdk init [DIRECTORY] # Default: #{DEFAULT_INIT_DIRECTORY}
+
+        NOT_A_DMDK_DIR
+        return false
+      end
+
+      unless trusted?($dmdk_root)
+        warn <<~NOT_A_TRUSTED_DMDK_DIR
+
+          This DocuModel Development Kit root directory is not known to the "dmdk"
+          command. To mark it as trusted run:
+
+          dmdk trust #{$dmdk_root}
+
+        NOT_A_TRUSTED_DMDK_DIR
+        return false
+      end
+
+      load(File.join($dmdk_root, 'lib/dmdk.rb'))
+      # rubocop:enable Style/GlobalVars
+      DMDK.main
+    end
+  end
+
+  def self.find_root(current)
+    if File.exist?(File.join(current, 'DMDK_ROOT'))
+      File.realpath(current)
+    elsif File.realpath(current) == '/'
+      nil
+    else
+      find_root(File.join(current, '..'))
+    end
+  end
+
+  def self.trusted?(directory)
+    trusted_directories = load_dotfile[TRUSTED_KEY] || []
+    !!trusted_directories.include?(File.realpath(directory))
+  end
+
+  def self.trust!(directory)
+    directory = File.realpath(directory)
+    config = load_dotfile
+    config[TRUSTED_KEY] ||= []
+
+    if config[TRUSTED_KEY].include?(directory)
+      puts "#{directory} is already in #{TRUSTED_KEY} in #{DOTFILE}"
+    else
+      config[TRUSTED_KEY] << directory
+      config[TRUSTED_KEY].uniq!
+      puts "Adding #{directory} to #{TRUSTED_KEY} in #{DOTFILE}"
+      File.open(DOTFILE, 'w') { |f| YAML.dump(config, f) }
+    end
+
+    true
+  end
+
+  def self.load_dotfile
+    File.open(DOTFILE, File::RDONLY | File::CREAT) do |f|
+      YAML.safe_load(f)
+    end || {}
+  end
+
+  def self.remember!(directory)
+    File.open("#{directory}/#{ROOT_CHECK_FILE}", 'w') do |f|
+      f.puts File.realpath(directory)
+    end
+    true
+  rescue StandardError => e
+    warn e
+    false
+  end
+end
+
+exit(DMDK.launcher_main)

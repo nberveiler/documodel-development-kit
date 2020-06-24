@@ -1,0 +1,93 @@
+docs_lint:
+  extends: .rules:docs-changes
+  stage: test
+  script:
+    - PATH="${HOME}/go/bin:${PATH}" make lint
+
+eclint:
+  extends: .rules:docs-code-changes
+  stage: test
+  script:
+    - make eclint
+
+rubocop:
+  extends: .rules:code-changes
+  stage: test
+  script:
+    - bundle install --jobs 4
+    - make rubocop
+
+rspec:
+  extends: .rules:code-changes
+  stage: test
+  script:
+    - bundle install --jobs 4 --path vendor/bundle
+    - bundle exec rspec --format progress --format RspecJunitFormatter --out rspec.xml
+  cache:
+      key: "ruby-2.6-bundle"
+      paths:
+        - ./vendor/bundle
+  artifacts:
+    paths:
+      - rspec.xml
+    reports:
+      junit: rspec.xml
+
+include:
+  - template: Code-Quality.gitlab-ci.yml
+
+code_quality:
+  extends:
+    - .rules:code-changes
+    - .docker:use-docker-in-docker
+  rules:
+    # For merge requests, create a pipeline.
+    - if: '$CI_MERGE_REQUEST_IID'
+    # For `master` branch, create a pipeline (this includes on schedules, pushes, merges, etc.).
+    - if: '$CI_COMMIT_BRANCH == "master"'
+    # For tags, create a pipeline.
+    - if: '$CI_COMMIT_TAG'
+
+container_scanning:
+  extends:
+    - .rules:code-changes
+    - .docker:use-docker-in-docker
+  stage: test
+  allow_failure: true
+  dependencies: []
+  script:
+    - docker run -d --name db arminc/clair-db:latest
+    - docker run -p 6060:6060 --link db:postgres -d --name clair --restart on-failure arminc/clair-local-scan:v2.0.1
+    - apk add -U wget ca-certificates
+    - docker pull ${VERIFY_IMAGE}
+    - wget https://github.com/arminc/clair-scanner/releases/download/v8/clair-scanner_linux_amd64
+    - mv clair-scanner_linux_amd64 clair-scanner
+    - chmod +x clair-scanner
+    - touch clair-whitelist.yml
+    - retries=0
+    - echo "Waiting for clair daemon to start"
+    - while( ! wget -T 10 -q -O /dev/null http://docker:6060/v1/namespaces ) ; do sleep 1 ; echo -n "." ; if [ $retries -eq 10 ] ; then echo " Timeout, aborting." ; exit 1 ; fi ; retries=$(($retries+1)) ; done
+    - ./clair-scanner -c http://docker:6060 --ip $(hostname -i) -r gl-sast-container-report.json -l clair.log -w clair-whitelist.yml ${VERIFY_IMAGE} || true
+  artifacts:
+    paths: [gl-sast-container-report.json]
+
+shellcheck:
+  stage: test
+  extends: .rules:code-changes
+  image: koalaman/shellcheck-alpine:stable
+  script:
+    - support/ci/shellcheck
+
+yard:
+  stage: test
+  script:
+    - bundle install --jobs 4 --path vendor/bundle
+    - bundle exec yardoc
+  cache:
+      key: "ruby-2.6-bundle"
+      paths:
+        - ./vendor/bundle
+  artifacts:
+    expire_in: 1 week
+    paths:
+      - yard/*

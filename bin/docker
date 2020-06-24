@@ -1,0 +1,37 @@
+#!/bin/sh
+
+if [ -z "${VERIFY_IMAGE}" ]; then
+    echo "VERIFY_IMAGE variable must not be empty and must contain an image name"
+    exit 1
+fi
+
+build_cache_archive="./latest_image.tar"
+
+case "$1" in
+    load)
+        if [ -f "${build_cache_archive}" ]; then
+            echo "Loading cached layers"
+            docker load < "${build_cache_archive}"
+            # Removing the archive (> 1GB!) so it will not be sent
+            # to the docker build context
+            rm "${build_cache_archive}"
+        fi
+        ;;
+    store)
+        echo "Caching layers"
+        # shellcheck disable=SC2046,SC2086
+        docker save "${VERIFY_IMAGE}" $(docker history -q ${VERIFY_IMAGE} | grep -v '<missing>') > "${build_cache_archive}"
+        ;;
+    build)
+        docker build -t "${VERIFY_IMAGE}" .
+        ;;
+    publish)
+        docker login --username gitlab-ci-token --password "${CI_BUILD_TOKEN}" registry.gitlab.com
+        docker push "${VERIFY_IMAGE}"
+        docker logout registry.gitlab.com
+        ;;
+    *)
+        echo "Usage: $0 [load|store|build|publish]"
+        exit 1
+        ;;
+esac

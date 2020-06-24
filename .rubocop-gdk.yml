@@ -1,0 +1,32 @@
+inherit_gem:
+  gitlab-styles:
+    - rubocop-default.yml
+
+AllCops:
+  TargetRubyVersion: 2.6.6
+  Exclude:
+    - 'elasticsearch/**/*'
+    - 'gitlab-docs/**/*'
+    - 'gitlab-elasticsearch-indexer/**/*'
+    - 'gitlab-pages/**/*'
+    - 'gitlab-runner/**/*'
+    - 'gitlab-shell/**/*'
+    - 'gitlab-workhorse/**/*'
+    - 'gitlab/**/*'
+    - 'go-gitlab-shell/**/*'
+    - 'grafana/**/*'
+    - 'influxdb/**/*'
+    - 'jaeger/**/*'
+    - 'log/**/*'
+    - 'postgresql/**/*'
+    - 'postgresql-primary/**/*'
+    - 'repositories/**/*'
+    - 'services/**/*'
+    - 'sv/**/*'
+    - 'tmp/**/*'
+
+Rails:
+  Enabled: false
+
+RSpec/ContextWording:
+  Enabled: false

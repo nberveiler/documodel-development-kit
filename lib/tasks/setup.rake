@@ -1,0 +1,10 @@
+desc 'Preflight checks for dependencies'
+task 'preflight-checks' do
+  checker = DMDK::Dependencies::Checker.new
+  checker.check_all
+
+  unless checker.error_messages.empty?
+    warn checker.error_messages
+    exit 1
+  end
+end

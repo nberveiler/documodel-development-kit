@@ -1,0 +1,40 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require_relative '../lib/dmdk'
+
+PROMPT_TIMEOUT = 5
+
+def ask_to_restart?
+  DMDK::Config.new.dmdk.ask_to_restart_after_update
+end
+
+def display_banner
+  puts <<~RESTART
+  -------------------------------------------------------
+  Would you like to restart your DMDK?
+
+  Any running sidekiq jobs (CI, Geo, etc) may be
+  interrupted if you say yes.
+  -------------------------------------------------------
+
+  RESTART
+end
+
+def restart_dmdk?
+  print "Restart DMDK (will timeout after #{PROMPT_TIMEOUT} secs) [y/N]? "
+
+  return gets.to_s.chomp.casecmp('y').zero? if select([$stdin], nil, nil, PROMPT_TIMEOUT)
+
+  puts # so keep the same formatting
+  false
+end
+
+def restart_dmdk
+  system('dmdk restart')
+end
+
+return unless ask_to_restart?
+
+display_banner
+restart_dmdk if restart_dmdk?

@@ -1,0 +1,18 @@
+development:
+  adapter: postgresql
+  encoding: unicode
+  database: documodelhq_development
+  host: <%= config.postgresql.host %>
+  port: <%= config.postgresql.port %>
+  pool: 10
+  load_balancing:
+    hosts:
+      - <%= config.postgresql.host %>
+
+test: &test
+  adapter: postgresql
+  encoding: unicode
+  database: documodelhq_test
+  host: <%= config.postgresql.host %>
+  port: <%= config.postgresql.port %>
+  pool: 10

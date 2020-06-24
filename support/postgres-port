@@ -1,0 +1,40 @@
+#!/usr/bin/env ruby
+
+require_relative '../lib/shellout'
+
+if ARGV.length != 2
+  puts "Illegal number of parameters"
+  exit 1
+end
+
+postgres_dir = File.expand_path(ARGV[0])
+postgres_port = ARGV[1]
+timestamp = Time.now.to_i
+config_file = File.join(postgres_dir, 'data', 'postgresql.conf')
+host_os = RbConfig::CONFIG['host_os']
+
+unless File.file?(config_file)
+  puts "PostgreSQL config file: #{config_file} does not exist."
+  exit 1
+end
+
+args = nil
+suffix = %(".#{timestamp}.bak")
+
+case host_os
+when /darwin/i
+  # BSD sed needs a space between `-i` and the suffix
+  args = "-E -i #{suffix}"
+when /linux/i
+  # GNU sed doesn't like a space between `-i` and the suffix
+  args = "-r -i#{suffix}"
+else
+  puts "Unsupported platform: #{host_os.inspect}"
+  exit 1
+end
+
+cmd = %(sed #{args} "s/([# \\t]*)(port[ \\t]=[ \\t])([0-9]{4,6})/\\2#{postgres_port}/g" #{config_file})
+sh = Shellout.new(cmd)
+sh.run
+
+abort sh.read_stderr unless sh.success?

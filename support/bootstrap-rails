@@ -1,0 +1,67 @@
+#!/usr/bin/env ruby
+require 'socket'
+require 'fileutils'
+
+require_relative '../lib/dmdk'
+require_relative '../lib/dmdk/postgresql'
+
+LOG_FILE = 'bootstrap-rails.log'.freeze
+
+def main
+  postgresql = DMDK::PostgreSQL.new
+  abort 'Cannot connect to postgres' unless postgresql.ready?
+
+  exit if postgresql.db_exists?('documodelhq_development')
+
+  success = true
+
+  begin
+    FileUtils.rm_f(LOG_FILE)
+
+    bootstrap_commands.each do |cmd|
+      success &&= system({ 'force' => 'yes', 'BOOTSTRAP' => '1' }, *cmd)
+    end
+  end
+
+  exit true if success
+
+  abort "#{$PROGRAM_NAME} failed"
+end
+
+def bootstrap_commands
+  [
+    %w[support/exec-cd documodel bundle exec rake dev:setup]
+  ]
+end
+
+def config
+  @config ||= DMDK::Config.new
+end
+
+def try_connect!(service)
+  print "Waiting for #{service} to boot"
+
+  sleep_time = 0.1
+  repeats = 100
+
+  repeats.times do
+    sleep sleep_time
+    print '.'
+
+    begin
+      UNIXSocket.new("#{service}.socket").close
+      puts ' OK'
+
+      return
+    rescue Errno::ENOENT, Errno::ECONNREFUSED
+    end
+  end
+
+  puts " failed to connect to #{service} after #{repeats * sleep_time}s"
+  puts
+  system('grep', "#{service}\.1", LOG_FILE)
+
+  abort
+end
+
+main
